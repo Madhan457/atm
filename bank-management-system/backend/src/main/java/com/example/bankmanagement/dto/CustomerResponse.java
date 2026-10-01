@@ -17,6 +17,7 @@ public class CustomerResponse {
     private String username;
     private String accountNumber;
     private String accountType;
+    private String accountStatus;
     private BigDecimal balance;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -35,6 +36,7 @@ public class CustomerResponse {
         response.setUsername(customer.getUsername());
         response.setAccountNumber(customer.getAccountNumber());
         response.setAccountType(customer.getAccountType());
+        response.setAccountStatus(customer.getAccountStatus());
         response.setBalance(customer.getBalance());
         response.setCreatedAt(customer.getCreatedAt());
         response.setUpdatedAt(customer.getUpdatedAt());
@@ -111,6 +113,14 @@ public class CustomerResponse {
 
     public void setAccountType(String accountType) {
         this.accountType = accountType;
+    }
+
+    public String getAccountStatus() {
+        return accountStatus;
+    }
+
+    public void setAccountStatus(String accountStatus) {
+        this.accountStatus = accountStatus;
     }
 
     public BigDecimal getBalance() {

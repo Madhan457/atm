@@ -97,25 +97,29 @@ function generatePassword() {
  * Get random character from string pool using crypto.getRandomValues
  */
 function getRandomChar(charSet) {
-    const randomBuffer = new Uint32Array(1);
-    window.crypto.getRandomValues(randomBuffer);
-    const randomIndex = randomBuffer[0] % charSet.length;
-    return charSet.charAt(randomIndex);
+    return charSet.charAt(getSecureRandomIndex(charSet.length));
 }
 
 /**
  * Cryptographically Secure Fisher-Yates Array Shuffle
  */
 function secureShuffleArray(array) {
-    const randomBuffer = new Uint32Array(array.length);
-    window.crypto.getRandomValues(randomBuffer);
-
     for (let i = array.length - 1; i > 0; i--) {
-        const j = randomBuffer[i] % (i + 1);
+        const j = getSecureRandomIndex(i + 1);
         const temp = array[i];
         array[i] = array[j];
         array[j] = temp;
     }
+}
+
+function getSecureRandomIndex(maxExclusive) {
+    const range = 0x100000000;
+    const limit = Math.floor(range / maxExclusive) * maxExclusive;
+    const randomBuffer = new Uint32Array(1);
+    do {
+        window.crypto.getRandomValues(randomBuffer);
+    } while (randomBuffer[0] >= limit);
+    return randomBuffer[0] % maxExclusive;
 }
 
 /**
@@ -178,12 +182,12 @@ function usePasswordForRegistration() {
         generatePassword();
     }
 
-    // Save in sessionStorage and redirect to index.html?action=signup
+    // Keep the one-time handoff in this browser tab, then clear it on the signup page.
     sessionStorage.setItem('prefilled_password', currentGeneratedPassword);
     showToast('Password saved! Redirecting to Signup form...', 'success');
 
     setTimeout(() => {
-        window.location.href = 'index.html?action=signup';
+        window.location.href = 'customer-auth.html?action=signup';
     }, 500);
 }
 

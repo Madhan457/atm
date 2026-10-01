@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Pattern;
 
 import java.time.LocalDate;
 
@@ -30,9 +31,11 @@ public class RegisterRequest {
     private String username;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters long")
+        @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,100}$",
+            message = "Password must be 8-100 characters and include uppercase, lowercase, number, and symbol")
     private String password;
 
+        @Pattern(regexp = "^(Savings|Current)$", message = "Account type must be Savings or Current")
     private String accountType = "Savings";
 
     public RegisterRequest() {

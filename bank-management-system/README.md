@@ -91,15 +91,14 @@ BankManagementSystem/
 ## 🔑 Key Features
 
 ### 1. Customer Authentication (Login & Signup)
-* **BCrypt Hashing**: Passwords encrypted with adaptive-cost BCrypt before persistence in MySQL. Plaintext passwords are never stored.
-* **Auto Account Generation**: Unique bank account numbers generated automatically in backend (e.g. `AC1000001234`).
-* **Input Validation**: Frontend and Spring Validation constraints (`@Email`, `@NotBlank`, `@Size`).
+* Customer signup creates a `PENDING` application with a generated account number and zero starting balance.
+* Customer and officer sessions use separate server-enforced Spring Security roles.
+* Passwords are BCrypt-hashed; customer and officer accounts have no public officer-registration path.
 
 ### 2. Customer Bank Management
-* **Account Overview**: Real-time balance (`₹10,000.00`), Account Number, Account Type (Savings / Current).
-* **Customer Details**: View Full Name, Email, Phone, Address, DOB, Username.
-* **Update Profile**: Modify contact details (`Full Name`, `Email`, `Phone`, `Address`). Prevents modification of Account Number, Balance, Username, or Password Hash.
-* **Account Deletion**: Confirmed deletion removes customer records from MySQL database and redirects to login.
+* Active customers can deposit, withdraw, and transfer simulated funds; each operation is validated by the backend.
+* Transfers update both accounts atomically and create matching ledger records.
+* Customers can view only their own history, update their profile, and change their password.
 
 ### 3. Smart Password Generator
 * **Web Crypto Security**: Uses `crypto.getRandomValues()` and secure Fisher-Yates shuffle algorithm.
@@ -128,9 +127,11 @@ Open **PowerShell** and set your MySQL password environment variable:
 
 ```powershell
 $env:DB_PASSWORD="YOUR_MYSQL_PASSWORD"
+$env:OFFICER_USERNAME="bank.officer"
+$env:OFFICER_PASSWORD="Choose-A-Strong-Password1!"
 ```
 
-*Replace `YOUR_MYSQL_PASSWORD` with your actual local MySQL root password.*
+Set these only in the backend launch environment and do not commit real credentials. On first startup, the officer is created once if both officer variables are set and the `officers` table is empty. The password is stored as BCrypt. Existing customers are preserved by the additive schema; existing rows default to `ACTIVE`, while new applications start `PENDING` with a zero balance.
 
 ---
 
@@ -139,11 +140,11 @@ $env:DB_PASSWORD="YOUR_MYSQL_PASSWORD"
 Navigate to the `backend/` directory in PowerShell / Command Prompt and run:
 
 ```powershell
-cd backend
+cd bank-management-system/backend
 .\mvnw.cmd spring-boot:run
 ```
 
-The Spring Boot backend will start on **`http://localhost:8080`**.
+Install Java 21 and Apache Maven first; this repository's `mvnw.cmd` delegates to an installed `mvn` command. The Spring Boot backend listens on **`http://localhost:8080`**.
 
 ---
 
@@ -152,8 +153,9 @@ The Spring Boot backend will start on **`http://localhost:8080`**.
 1. Open VS Code.
 2. Open the `frontend/` directory.
 3. Right-click `index.html` and select **Open with Live Server**.
-4. Access the application in your browser at:
-   **`http://localhost:5500/index.html`** (or `http://127.0.0.1:5500/index.html`).
+4. Open the Live Server URL. When the workspace root is served, use:
+  **`http://localhost:5501/bank-management-system/frontend/index.html`**.
+  If the `frontend/` folder itself is served, use **`http://localhost:5500/index.html`**.
 
 ---
 
@@ -161,12 +163,16 @@ The Spring Boot backend will start on **`http://localhost:8080`**.
 
 | Method | Endpoint | Description | Auth Required |
 |---|---|---|---|
-| `POST` | `/api/auth/login` | Authenticate customer with BCrypt check | No |
-| `POST` | `/api/auth/logout` | Clear session state | No |
-| `POST` | `/api/customers/register` | Register new customer & generate account number | No |
-| `GET` | `/api/customers/profile` | Retrieve customer profile details | Header `X-Customer-Id` |
-| `PUT` | `/api/customers/profile` | Update profile contact information | Header `X-Customer-Id` |
-| `DELETE` | `/api/customers/account` | Permanently delete customer account | Header `X-Customer-Id` |
+| `POST` | `/api/auth/customer/login` | Customer username/password login | No |
+| `POST` | `/api/auth/officer/login` | Officer username/password login | No |
+| `POST` | `/api/auth/logout` | Invalidate the current session | Session |
+| `POST` | `/api/customers/register` | Create a pending customer application | No |
+| `GET/PUT` | `/api/customers/profile` | Read/update current customer profile | Customer |
+| `POST` | `/api/customers/password` | Change password after verification | Customer |
+| `POST` | `/api/transactions/{deposit,withdraw,transfer}` | Execute simulated banking operation | Customer |
+| `GET` | `/api/transactions/customer/history` | View own transaction history | Customer |
+| `GET/PUT` | `/api/officers/customers/**` | Review and manage accounts | Officer |
+| `GET` | `/api/officers/dashboard`, `/reports`, `/transactions` | Officer statistics and reports | Officer |
 
 ---
 
@@ -176,27 +182,23 @@ Follow this end-to-end verification flow:
 
 1. **Start MySQL** and verify `bank_management` database exists.
 2. **Start Backend** using `.\mvnw.cmd spring-boot:run`.
-3. **Open Frontend** `index.html` on `http://localhost:5500`.
-4. Switch to **Create Account** tab.
+3. **Open Frontend** `frontend/index.html` using Live Server.
+4. Choose **Proceed to Bank**, then **Customer Signup**.
 5. Click **⚡ Generate Strong Password** to open `password.html`.
 6. Adjust length slider (e.g., 20 characters), toggle character sets, observe strength badge change to **Very Strong**.
 7. Click **Copy Password**, then click **Use This Password**.
-8. Verify you are returned to `index.html` with Password and Confirm Password pre-filled.
+8. Verify you are returned to `customer-auth.html` with Password and Confirm Password pre-filled.
 9. Complete remaining registration fields (Full Name, Email, Phone, DOB, Address, Username) and click **Register Account**.
 10. Check MySQL database `SELECT * FROM customers;`:
     * Verify `password_hash` starts with `$2a$` (BCrypt hash).
     * Verify plaintext password is NOT saved anywhere.
     * Verify `account_number` is formatted as `AC100000XXXX`.
-11. Log in with your new username and password.
-12. Verify automatic redirection to `home.html` (Service Selection Dashboard).
-13. Click **Open Bank** to navigate to `bank.html`.
-14. Verify customer details, account number, and default balance (`₹10,000.00`).
-15. Click **Update Profile**, change Phone Number and Address, click **Save Changes**.
-16. Verify updated details reflect in UI and in MySQL database.
-17. Click **Back to Home**, then click **Open Password Generator**.
-18. Click **Logout** and verify attempting to visit `bank.html` directly redirects back to `index.html`.
-19. Login again, click **Delete Account**, confirm prompt.
-20. Verify customer record is deleted from MySQL and session is cleared.
+11. Log in as an officer, approve the pending application, and verify its status changes to `ACTIVE`.
+12. Log in as the customer and verify account status, generated account number, and zero balance.
+13. Test deposit, withdrawal, transfer, and customer-only transaction history.
+14. Test officer search, block/unblock, transaction filters, and reports.
+15. Verify pending and blocked customers cannot execute banking operations.
+16. Verify the standalone password generator remains available from the public home.
 
 ---
 
@@ -205,6 +207,6 @@ Follow this end-to-end verification flow:
 * **Error: `Access denied for user 'root'@'localhost'`**:
   Ensure you set `$env:DB_PASSWORD="YOUR_MYSQL_PASSWORD"` in the terminal window where you run `.\mvnw.cmd spring-boot:run`.
 * **CORS Error in Browser**:
-  Ensure frontend is running on `http://localhost:5500` or `http://127.0.0.1:5500` as defined in `SecurityConfig.java`.
+  Ensure the frontend uses an allowed Live Server origin: `http://localhost:5500`, `http://127.0.0.1:5500`, `http://localhost:5501`, or `http://127.0.0.1:5501`.
 * **Page Redirection loop**:
   Clear browser `localStorage` and `sessionStorage` via Developer Tools (F12) -> Application -> Local Storage.

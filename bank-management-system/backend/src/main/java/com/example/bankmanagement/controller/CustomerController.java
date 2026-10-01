@@ -1,14 +1,15 @@
 package com.example.bankmanagement.controller;
 
 import com.example.bankmanagement.dto.CustomerResponse;
+import com.example.bankmanagement.dto.ChangePasswordRequest;
 import com.example.bankmanagement.dto.RegisterRequest;
 import com.example.bankmanagement.dto.UpdateCustomerRequest;
-import com.example.bankmanagement.exception.CustomerNotFoundException;
 import com.example.bankmanagement.service.CustomerService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -16,12 +17,10 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/customers")
-@CrossOrigin(origins = {"http://localhost:5500", "http://127.0.0.1:5500", "http://localhost:5501", "http://127.0.0.1:5501"})
 public class CustomerController {
 
     private final CustomerService customerService;
 
-    @Autowired
     public CustomerController(CustomerService customerService) {
         this.customerService = customerService;
     }
@@ -37,12 +36,8 @@ public class CustomerController {
     }
 
     @GetMapping("/profile")
-    public ResponseEntity<Map<String, Object>> getProfile(
-            @RequestHeader(value = "X-Customer-Id", required = false) Long headerCustomerId,
-            @RequestParam(value = "customerId", required = false) Long queryCustomerId) {
-
-        Long customerId = resolveCustomerId(headerCustomerId, queryCustomerId);
-        CustomerResponse profile = customerService.getCustomerProfile(customerId);
+    public ResponseEntity<Map<String, Object>> getProfile(@AuthenticationPrincipal UserDetails principal) {
+        CustomerResponse profile = customerService.getCustomerProfile(principal.getUsername());
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
@@ -52,12 +47,10 @@ public class CustomerController {
 
     @PutMapping("/profile")
     public ResponseEntity<Map<String, Object>> updateProfile(
-            @RequestHeader(value = "X-Customer-Id", required = false) Long headerCustomerId,
-            @RequestParam(value = "customerId", required = false) Long queryCustomerId,
+            @AuthenticationPrincipal UserDetails principal,
             @Valid @RequestBody UpdateCustomerRequest updateRequest) {
 
-        Long customerId = resolveCustomerId(headerCustomerId, queryCustomerId);
-        CustomerResponse updatedCustomer = customerService.updateCustomerProfile(customerId, updateRequest);
+        CustomerResponse updatedCustomer = customerService.updateCustomerProfile(principal.getUsername(), updateRequest);
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
@@ -67,12 +60,8 @@ public class CustomerController {
     }
 
     @DeleteMapping("/account")
-    public ResponseEntity<Map<String, Object>> deleteAccount(
-            @RequestHeader(value = "X-Customer-Id", required = false) Long headerCustomerId,
-            @RequestParam(value = "customerId", required = false) Long queryCustomerId) {
-
-        Long customerId = resolveCustomerId(headerCustomerId, queryCustomerId);
-        customerService.deleteCustomerAccount(customerId);
+    public ResponseEntity<Map<String, Object>> deleteAccount(@AuthenticationPrincipal UserDetails principal) {
+        customerService.deleteCustomerAccount(principal.getUsername());
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
@@ -80,9 +69,11 @@ public class CustomerController {
         return ResponseEntity.ok(response);
     }
 
-    private Long resolveCustomerId(Long headerId, Long queryId) {
-        if (headerId != null) return headerId;
-        if (queryId != null) return queryId;
-        throw new CustomerNotFoundException("Unauthorized: Customer session token/header (X-Customer-Id) is missing.");
+    @PostMapping("/password")
+    public ResponseEntity<Map<String, Object>> changePassword(
+            @AuthenticationPrincipal UserDetails principal,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        customerService.changePassword(principal.getUsername(), request);
+        return ResponseEntity.ok(Map.of("success", true, "message", "Password changed successfully."));
     }
 }

@@ -40,6 +40,9 @@ public class Customer {
     @Column(name = "account_type", nullable = false)
     private String accountType; // "Savings" or "Current"
 
+    @Column(name = "account_status", nullable = false, columnDefinition = "varchar(20) default 'ACTIVE'")
+    private String accountStatus;
+
     @Column(name = "balance", nullable = false, precision = 15, scale = 2)
     private BigDecimal balance;
 
@@ -79,6 +82,9 @@ public class Customer {
         }
         if (this.accountType == null || this.accountType.isBlank()) {
             this.accountType = "Savings";
+        }
+        if (this.accountStatus == null || this.accountStatus.isBlank()) {
+            this.accountStatus = "PENDING";
         }
     }
 
@@ -167,6 +173,14 @@ public class Customer {
 
     public void setAccountType(String accountType) {
         this.accountType = accountType;
+    }
+
+    public String getAccountStatus() {
+        return accountStatus;
+    }
+
+    public void setAccountStatus(String accountStatus) {
+        this.accountStatus = accountStatus;
     }
 
     public BigDecimal getBalance() {

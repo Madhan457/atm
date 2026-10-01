@@ -21,7 +21,7 @@
     <!-- Protected Navbar Header -->
     <header class="navbar-header">
         <div class="nav-container">
-            <a href="home.html" class="brand-logo">
+            <a href="index.html" class="brand-logo">
                 <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                     <path d="m9 12 2 2 4-4"></path>
@@ -30,8 +30,8 @@
             </a>
 
             <nav class="nav-menu">
-                <a href="home.html" class="nav-link">Home</a>
-                <a href="bank.html" class="nav-link active">Bank Management</a>
+                <a href="index.html" class="nav-link">Home</a>
+                <a href="bank-entry.html" class="nav-link active">Bank Management</a>
                 <a href="password.html" class="nav-link">Password Generator</a>
             </nav>
 
@@ -50,13 +50,15 @@
             <div class="dashboard-banner">
                 <div class="welcome-text">
                     <h1 id="dash-welcome">Welcome, Customer Name</h1>
-                    <p>Trust Bank Account Management Portal • Status: <span class="badge badge-success">Active Account</span></p>
+                    <p>Trust Bank Customer Dashboard · Status: <span class="account-status-badge" id="dash-status">Loading</span></p>
                 </div>
                 <div class="dash-quick-buttons">
-                    <a href="home.html" class="btn btn-outline-light btn-sm">🏠 Back to Home</a>
+                    <a href="index.html" class="btn btn-outline-light btn-sm">Back to Home</a>
                     <button class="btn btn-danger-light btn-sm" onclick="handleLogout()">Logout</button>
                 </div>
             </div>
+
+            <div id="account-status-notice" class="status-notice hidden" role="status"></div>
 
             <!-- Account Details Grid -->
             <div class="dashboard-grid">
@@ -76,6 +78,10 @@
                         <div class="detail-row">
                             <span class="detail-label">Account Number</span>
                             <span class="detail-value font-mono" id="dash-account-number">AC1000000000</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Account Status</span>
+                            <span class="detail-value" id="dash-status-detail">-</span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Currency</span>
@@ -131,11 +137,12 @@
                     <button class="btn btn-primary" onclick="showUpdateModal()">
                         ✏️ Update Profile
                     </button>
+                    <button class="btn btn-secondary" onclick="showPasswordModal()">Change Password</button>
                     <a href="password.html" class="btn btn-secondary">
                         🔐 Password Generator
                     </a>
-                    <a href="home.html" class="btn btn-outline">
-                        🏠 Back to Home
+                    <a href="index.html" class="btn btn-outline">
+                        Back to Home
                     </a>
                     <button class="btn btn-danger-outline" onclick="showDeleteConfirmationModal()">
                         🗑️ Delete Account
@@ -145,6 +152,49 @@
                     </button>
                 </div>
             </div>
+
+            <section class="transaction-workspace" aria-label="Banking operations">
+                <article class="dash-card transaction-form-card">
+                    <h3>Deposit</h3>
+                    <form id="deposit-form" class="form-stack" onsubmit="submitBankTransaction(event, 'deposit')">
+                        <div class="form-group"><label for="deposit-amount">Amount</label><input id="deposit-amount" type="number" min="0.01" step="0.01" required></div>
+                        <div class="form-group"><label for="deposit-description">Description</label><input id="deposit-description" maxlength="500"></div>
+                        <button class="btn btn-primary" type="submit">Deposit</button>
+                    </form>
+                </article>
+                <article class="dash-card transaction-form-card">
+                    <h3>Withdraw</h3>
+                    <form id="withdraw-form" class="form-stack" onsubmit="submitBankTransaction(event, 'withdraw')">
+                        <div class="form-group"><label for="withdraw-amount">Amount</label><input id="withdraw-amount" type="number" min="0.01" step="0.01" required></div>
+                        <div class="form-group"><label for="withdraw-description">Description</label><input id="withdraw-description" maxlength="500"></div>
+                        <button class="btn btn-primary" type="submit">Withdraw</button>
+                    </form>
+                </article>
+                <article class="dash-card transaction-form-card">
+                    <h3>Transfer Money</h3>
+                    <form id="transfer-form" class="form-stack" onsubmit="submitBankTransaction(event, 'transfer')">
+                        <div class="form-group"><label for="transfer-recipient">Recipient Account Number</label><input id="transfer-recipient" required maxlength="100"></div>
+                        <div class="form-group"><label for="transfer-amount">Amount</label><input id="transfer-amount" type="number" min="0.01" step="0.01" required></div>
+                        <div class="form-group"><label for="transfer-description">Description</label><input id="transfer-description" maxlength="500"></div>
+                        <button class="btn btn-primary" type="submit">Transfer</button>
+                    </form>
+                </article>
+            </section>
+
+            <section class="dash-card transaction-history" aria-labelledby="transaction-history-title">
+                <div class="dash-card-header history-heading">
+                    <h3 id="transaction-history-title">Transaction History</h3>
+                    <label class="history-filter">Type
+                        <select id="transaction-filter" onchange="loadCustomerTransactions()">
+                            <option value="">All transactions</option>
+                            <option value="DEPOSIT">Deposits</option>
+                            <option value="WITHDRAWAL">Withdrawals</option>
+                            <option value="TRANSFER">Transfers</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="table-scroll"><table class="data-table"><thead><tr><th>ID</th><th>Type</th><th>Amount</th><th>Before</th><th>After</th><th>Sender</th><th>Recipient</th><th>Description</th><th>Date</th><th>Status</th></tr></thead><tbody id="customer-transactions"><tr><td colspan="10">Loading transactions…</td></tr></tbody></table></div>
+            </section>
 
             <!-- Update Profile Modal -->
             <div id="update-modal" class="modal-backdrop hidden">
@@ -201,6 +251,18 @@
                         <button class="btn btn-secondary" onclick="hideDeleteConfirmationModal()">Cancel</button>
                         <button class="btn btn-danger" onclick="confirmDeleteAccount()">Delete Account</button>
                     </div>
+                </div>
+            </div>
+
+            <div id="password-modal" class="modal-backdrop hidden">
+                <div class="modal-card">
+                    <div class="modal-header"><h3>Change Password</h3><button class="modal-close-btn" type="button" onclick="hidePasswordModal()">&times;</button></div>
+                    <form id="change-password-form" onsubmit="handlePasswordChange(event)" class="form-stack">
+                        <div class="form-group"><label for="current-password">Current Password</label><input type="password" id="current-password" autocomplete="current-password" required></div>
+                        <div class="form-group"><label for="new-password">New Password</label><input type="password" id="new-password" autocomplete="new-password" minlength="8" required></div>
+                        <div class="form-group"><label for="confirm-new-password">Confirm New Password</label><input type="password" id="confirm-new-password" autocomplete="new-password" minlength="8" required></div>
+                        <div class="form-actions"><button class="btn btn-primary" type="submit">Save Password</button><button class="btn btn-secondary" type="button" onclick="hidePasswordModal()">Cancel</button></div>
+                    </form>
                 </div>
             </div>
 

@@ -7,7 +7,7 @@ const API_BASE_URL = "http://localhost:8080";
 async function requestApi(url, options = {}) {
     let response;
     try {
-        response = await fetch(url, options);
+        response = await fetch(url, { ...options, credentials: options.credentials || 'include' });
     } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         throw new Error(`Network request to ${url} failed (${detail}). Confirm Spring Boot is running on port 8080; if it is, check the browser console for CORS errors.`);
@@ -53,7 +53,7 @@ function initAuthPage() {
             if (passField && confirmPassField) {
                 passField.value = prefilledPassword;
                 confirmPassField.value = prefilledPassword;
-                showToast('Pre-filled generated password applied to fields!', 'success');
+                showToast('Generated password applied to both password fields.', 'success');
             }
             sessionStorage.removeItem('prefilled_password');
         }
@@ -97,25 +97,31 @@ function togglePasswordVisibility(inputId) {
 /**
  * Check Protected Page Auth Guard
  */
-function checkAuthGuard() {
-    const userJson = localStorage.getItem('apex_user') || sessionStorage.getItem('apex_user');
+function checkAuthGuard(expectedRole = 'CUSTOMER') {
+    const userJson = localStorage.getItem('apex_user');
     if (!userJson) {
         showToast('Please log in to access this page.', 'warning');
         setTimeout(() => {
-            window.location.href = 'index.html';
+            window.location.href = expectedRole === 'OFFICER' ? 'officer-login.html' : 'customer-auth.html';
         }, 300);
         return null;
     }
     try {
-        return JSON.parse(userJson);
-    } catch (e) {
-        window.location.href = 'index.html';
+        const user = JSON.parse(userJson);
+        if (user.role !== expectedRole) {
+            window.location.href = expectedRole === 'OFFICER' ? 'officer-login.html' : 'customer-auth.html';
+            return null;
+        }
+        return user;
+    } catch {
+        localStorage.removeItem('apex_user');
+        window.location.href = expectedRole === 'OFFICER' ? 'officer-login.html' : 'customer-auth.html';
         return null;
     }
 }
 
 /**
- * Handle Customer Login (POST /api/auth/login)
+ * Handle Customer Login (POST /api/auth/customer/login)
  */
 async function handleLogin(event) {
     event.preventDefault();
@@ -135,19 +141,28 @@ async function handleLogin(event) {
     }
 
     try {
-        const { response, result } = await requestApi(`${API_BASE_URL}/api/auth/login`, {
+        const { response, result } = await requestApi(`${API_BASE_URL}/api/auth/customer/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ usernameOrEmail, password })
         });
 
         if (response.ok && result.success && result.customer) {
-            // Store session info
-            localStorage.setItem('apex_user', JSON.stringify(result.customer));
-            showToast(`Login successful! Redirecting...`, 'success');
+            if (result.customer.accountStatus !== 'ACTIVE') {
+                const statusNote = document.getElementById('login-status-note');
+                if (statusNote) {
+                    statusNote.textContent = result.message || 'This account is not active.';
+                    statusNote.classList.remove('hidden');
+                }
+                showToast(result.message || 'This account is not active.', 'warning');
+                return;
+            }
+            const customer = { ...result.customer, role: 'CUSTOMER' };
+            localStorage.setItem('apex_user', JSON.stringify(customer));
+            showToast(result.message || 'Login successful.', 'success');
             
             setTimeout(() => {
-                window.location.href = 'home.html';
+                window.location.href = 'bank.html';
             }, 600);
         } else {
             showToast(result.message || 'Invalid username or password.', 'error');
@@ -212,20 +227,15 @@ async function handleSignup(event) {
             body: JSON.stringify(payload)
         });
 
-        if (response.ok && result.success && result.customer) {
-            // Store session info automatically upon signup
-            localStorage.setItem('apex_user', JSON.stringify(result.customer));
-            showToast('Registration successful! Opening dashboard...', 'success');
-            document.getElementById('signup-form').reset();
-            
-            setTimeout(() => {
-                window.location.href = 'home.html';
-            }, 600);
-        } else if (response.ok && result.success) {
-            // Fallback if result.customer not directly attached
-            showToast('Registration successful! Please login with your credentials.', 'success');
+        if (response.ok && result.success) {
+            showToast(result.message || 'Application submitted. Your account is pending approval.', 'success');
             document.getElementById('signup-form').reset();
             document.getElementById('login-username').value = username;
+            const statusNote = document.getElementById('login-status-note');
+            if (statusNote) {
+                statusNote.textContent = result.message || 'Your account is pending bank officer approval.';
+                statusNote.classList.remove('hidden');
+            }
             switchAuthTab('login');
         } else {
             showToast(result.message || 'Registration failed.', 'error');
@@ -237,6 +247,29 @@ async function handleSignup(event) {
             submitBtn.disabled = false;
             submitBtn.textContent = 'Register Account';
         }
+    }
+}
+
+async function handleOfficerLogin(event) {
+    event.preventDefault();
+    const username = document.getElementById('officer-username').value.trim();
+    const password = document.getElementById('officer-password').value;
+    const submitButton = document.getElementById('btn-officer-login');
+    submitButton.disabled = true;
+
+    try {
+        const { result } = await requestApi(`${API_BASE_URL}/api/auth/officer/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ usernameOrEmail: username, password })
+        });
+        localStorage.setItem('apex_user', JSON.stringify({ username, role: 'OFFICER' }));
+        showToast(result.message || 'Officer login successful.', 'success');
+        window.location.href = 'officer-dashboard.html';
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        submitButton.disabled = false;
     }
 }
 
@@ -263,7 +296,7 @@ async function handleLogout() {
  * Navigate to Password Generator from Signup Form
  */
 function openPasswordGenerator() {
-    window.location.href = 'password.html';
+    window.location.href = 'password.html?return=signup';
 }
 
 function handleForgotPassword() {

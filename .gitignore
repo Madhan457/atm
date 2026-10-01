@@ -1,0 +1,4 @@
+bank-management-system/backend/target/
+*.log
+.env*
+!.env.example
